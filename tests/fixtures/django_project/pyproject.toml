@@ -1,0 +1,9 @@
+[project]
+name = "test-django-app"
+version = "0.1.0"
+description = "Test Django project"
+requires-python = ">=3.11"
+dependencies = [
+    "django>=4.2.0",
+    "psycopg2-binary>=2.9.0",
+]
