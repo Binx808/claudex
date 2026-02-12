@@ -8,6 +8,29 @@ from claudex import __version__
 from claudex.copier import PRESETS_DIR
 
 
+def _parse_simple_yaml_line(line: str) -> tuple[str, str] | None:
+    """Parse a simple 'key: value' line from YAML."""
+    if ":" not in line or line.strip().startswith("-"):
+        return None
+
+    key, _, value = line.partition(":")
+    key = key.strip()
+    value = value.strip()
+
+    if value == "|":
+        return None  # Multiline marker, not a simple value
+
+    if value.startswith('"') and value.endswith('"'):
+        value = value[1:-1]
+
+    return (key, value)
+
+
+def _finalize_multiline(multiline_value: list[str]) -> str:
+    """Convert multiline list to final string value."""
+    return "\n".join(multiline_value).rstrip()
+
+
 def load_preset(preset_name: str) -> dict:
     """Load a preset YAML file (simple parser, no PyYAML dependency)."""
     preset_file = PRESETS_DIR / f"{preset_name}.yaml"
@@ -23,39 +46,39 @@ def load_preset(preset_name: str) -> dict:
     in_multiline = False
 
     for line in preset_file.read_text(encoding="utf-8").splitlines():
+        # Skip comments and empty lines (but preserve in multiline)
         if line.strip().startswith("#") or not line.strip():
             if in_multiline:
                 multiline_value.append("")
             continue
 
+        # Start of multiline block
         if ": |" in line and not line.strip().startswith("-"):
             current_key = line.split(":")[0].strip()
             in_multiline = True
             multiline_value = []
             continue
 
+        # Inside multiline block
         if in_multiline:
             if line.startswith("  "):
                 multiline_value.append(line[2:])
                 continue
             else:
+                # End multiline, save it
                 if current_key is not None:
-                    config[current_key] = "\n".join(multiline_value).rstrip()
+                    config[current_key] = _finalize_multiline(multiline_value)
                 in_multiline = False
 
-        if ":" in line and not line.strip().startswith("-"):
-            key, _, value = line.partition(":")
-            key = key.strip()
-            value = value.strip()
-            if value and value != "|":
-                if value.startswith('"') and value.endswith('"'):
-                    value = value[1:-1]
-                config[key] = value
-            elif not value:
-                config[key] = ""
+        # Simple key: value line
+        parsed = _parse_simple_yaml_line(line)
+        if parsed:
+            key, value = parsed
+            config[key] = value
 
+    # Handle trailing multiline block
     if in_multiline and current_key is not None:
-        config[current_key] = "\n".join(multiline_value).rstrip()
+        config[current_key] = _finalize_multiline(multiline_value)
 
     return config
 
@@ -65,16 +88,88 @@ def list_presets() -> list[str]:
     return sorted(f.stem for f in PRESETS_DIR.glob("*.yaml"))
 
 
-def cmd_init(args: argparse.Namespace) -> int:
-    """Handle the init subcommand."""
+def _confirm_init(profile, target: Path) -> bool:
+    """Prompt user for confirmation before initializing."""
+    print(f"\n  Detected: {profile.language or 'unknown'}", end="")
+    if profile.framework:
+        print(f" + {profile.framework}", end="")
+    if profile.package_manager:
+        print(f" + {profile.package_manager}", end="")
+    if profile.db_type:
+        print(f" + {profile.db_type}", end="")
+    print()
+    print(f"  Preset:   {profile.preset_selected} (auto-detected)")
+    print(f"  Target:   {target}")
+    print()
+
+    try:
+        answer = input("  Proceed? [Y/n] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print("\n  Cancelled.")
+        return False
+
+    if answer and answer not in ("y", "yes"):
+        print("  Cancelled.")
+        return False
+
+    return True
+
+
+def _init_claude_md(target: Path, profile, preset_config: dict, dry_run: bool) -> None:
+    """Generate and write CLAUDE.md file."""
+    from claudex.generator import generate_claude_md
+
+    claude_md_content = generate_claude_md(profile, preset_config)
+    claude_md_path = target / "CLAUDE.md"
+
+    if not dry_run:
+        claude_md_path.write_text(claude_md_content, encoding="utf-8")
+        print(f"  CREATE: CLAUDE.md ({len(claude_md_content)} bytes)")
+    else:
+        print(f"  CREATE: {claude_md_path}")
+
+
+def _init_project_files(target: Path, profile, dry_run: bool) -> None:
+    """Copy template files and configure project."""
     from claudex.copier import (
         PROJECT_TEMPLATE,
         copy_tree,
         ensure_gitignore,
         patch_lint_hook,
     )
+
+    claude_dir = target / ".claude"
+
+    # Copy template files
+    if not dry_run:
+        claude_dir.mkdir(exist_ok=True)
+    copy_tree(PROJECT_TEMPLATE, claude_dir, dry_run=dry_run)
+
+    # Copy .mcp.json to project root
+    mcp_template = PROJECT_TEMPLATE / "mcp.json.template"
+    mcp_dest = target / ".mcp.json"
+    if mcp_template.exists() and not mcp_dest.exists():
+        if not dry_run:
+            content = mcp_template.read_text(encoding="utf-8")
+            mcp_dest.write_text(content, encoding="utf-8")
+            print(f"  CREATE: .mcp.json")
+        else:
+            print(f"  CREATE: {mcp_dest}")
+    elif mcp_dest.exists():
+        print("  SKIP (exists): .mcp.json")
+
+    # Patch lint hook from detection
+    if not dry_run:
+        patch_lint_hook(claude_dir, profile)
+
+    # Add .claude/ to .gitignore
+    if not dry_run:
+        ensure_gitignore(target)
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    """Handle the init subcommand."""
     from claudex.detectors import detect_project
-    from claudex.generator import generate_claude_md
 
     target = Path(args.directory).resolve()
     if not target.is_dir():
@@ -88,77 +183,28 @@ def cmd_init(args: argparse.Namespace) -> int:
         print("Use --force to overwrite, or 'claudex update' to refresh templates.")
         return 2
 
-    # Detect project
+    # Detect project and load preset
     profile = detect_project(target)
-
-    # Override preset if specified
     if args.preset:
         profile.preset_selected = args.preset
     preset_config = load_preset(profile.preset_selected)
 
     # Confirmation
     if not args.yes:
-        print(f"\n  Detected: {profile.language or 'unknown'}", end="")
-        if profile.framework:
-            print(f" + {profile.framework}", end="")
-        if profile.package_manager:
-            print(f" + {profile.package_manager}", end="")
-        if profile.db_type:
-            print(f" + {profile.db_type}", end="")
-        print()
-        print(f"  Preset:   {profile.preset_selected} (auto-detected)")
-        print(f"  Target:   {target}")
-        print()
-        try:
-            answer = input("  Proceed? [Y/n] ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            print("\n  Cancelled.")
-            return 0
-        if answer and answer not in ("y", "yes"):
-            print("  Cancelled.")
+        if not _confirm_init(profile, target):
             return 0
 
     print(f"\n=== Initializing .claude/ in {target} ===\n")
 
     # Generate CLAUDE.md
-    claude_md_content = generate_claude_md(profile, preset_config)
-    claude_md_path = target / "CLAUDE.md"
-    if not args.dry_run:
-        claude_md_path.write_text(claude_md_content, encoding="utf-8")
-        print(f"  CREATE: CLAUDE.md ({len(claude_md_content)} bytes)")
-    else:
-        print(f"  CREATE: {claude_md_path}")
+    _init_claude_md(target, profile, preset_config, args.dry_run)
 
-    # Copy template files
-    if not args.dry_run:
-        claude_dir.mkdir(exist_ok=True)
-    copy_tree(PROJECT_TEMPLATE, claude_dir, dry_run=args.dry_run)
-
-    # Copy .mcp.json to project root
-    mcp_template = PROJECT_TEMPLATE / "mcp.json.template"
-    mcp_dest = target / ".mcp.json"
-    if mcp_template.exists() and not mcp_dest.exists():
-        if not args.dry_run:
-            content = mcp_template.read_text(encoding="utf-8")
-            mcp_dest.write_text(content, encoding="utf-8")
-            print(f"  CREATE: .mcp.json")
-        else:
-            print(f"  CREATE: {mcp_dest}")
-    elif mcp_dest.exists():
-        print("  SKIP (exists): .mcp.json")
-
-    # Patch lint hook from detection
-    if not args.dry_run:
-        patch_lint_hook(claude_dir, profile)
-
-    # Add .claude/ to .gitignore
-    if not args.dry_run:
-        ensure_gitignore(target / ".gitignore")
+    # Copy template files and configure
+    _init_project_files(target, profile, args.dry_run)
 
     # Global config
     if args.setup_global:
         from claudex.copier import setup_global
-
         setup_global(dry_run=args.dry_run)
 
     print(f"\n  Done! .claude/ configured with '{profile.preset_selected}' preset.")

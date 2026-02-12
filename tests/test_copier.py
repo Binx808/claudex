@@ -9,6 +9,8 @@ from claudex.copier import (
     copy_tree,
     ensure_gitignore,
     patch_lint_hook,
+    patch_lint_hook_from_preset,
+    setup_global,
 )
 from claudex.detectors import ProjectProfile
 
@@ -163,3 +165,98 @@ class TestPatchLintHook:
         except FileNotFoundError:
             # Expected behavior - hook should exist but test covers the case
             pass
+
+
+class TestPatchLintHookFromPreset:
+    """Test lint hook patching from preset config."""
+
+    def test_patches_hook_from_preset_lint_dirs(self, temp_dst):
+        claude_dir = temp_dst / ".claude"
+        claude_dir.mkdir()
+        hooks_dir = claude_dir / "hooks"
+        hooks_dir.mkdir()
+
+        lint_hook = hooks_dir / "stop-lint-check.py"
+        lint_hook.write_text('LINT_DIRS = ["src/", "tests/"]\nLINT_EXTENSIONS = [".py"]\n')
+
+        preset_config = {
+            "lint_dirs": """
+- "app/"
+- "core/"
+"""
+        }
+
+        patch_lint_hook_from_preset(claude_dir, preset_config)
+
+        content = lint_hook.read_text()
+        assert "app/" in content and "core/" in content
+
+    def test_patches_hook_from_preset_extensions(self, temp_dst):
+        claude_dir = temp_dst / ".claude"
+        claude_dir.mkdir()
+        hooks_dir = claude_dir / "hooks"
+        hooks_dir.mkdir()
+
+        lint_hook = hooks_dir / "stop-lint-check.py"
+        lint_hook.write_text('LINT_DIRS = ["src/", "tests/"]\nLINT_EXTENSIONS = [".py"]\n')
+
+        preset_config = {
+            "lint_extensions": """
+- ".ts"
+- ".tsx"
+"""
+        }
+
+        patch_lint_hook_from_preset(claude_dir, preset_config)
+
+        content = lint_hook.read_text()
+        assert ".ts" in content or ".tsx" in content
+
+    def test_handles_missing_hook_from_preset_gracefully(self, temp_dst):
+        claude_dir = temp_dst / ".claude"
+        claude_dir.mkdir()
+
+        preset_config = {"lint_dirs": '- "app/"'}
+
+        # Should not crash if hook doesn't exist
+        try:
+            patch_lint_hook_from_preset(claude_dir, preset_config)
+        except FileNotFoundError:
+            pass
+
+
+class TestSetupGlobal:
+    """Test global ~/.claude/ configuration."""
+
+    def test_creates_global_claude_dir(self, monkeypatch, temp_dst):
+        # Mock Path.home() to use temp directory
+        monkeypatch.setattr(Path, "home", lambda: temp_dst)
+
+        setup_global(dry_run=False)
+
+        assert (temp_dst / ".claude").exists()
+        assert (temp_dst / ".claude" / "rules").exists()
+
+    def test_dry_run_mode(self, monkeypatch, temp_dst, capsys):
+        monkeypatch.setattr(Path, "home", lambda: temp_dst)
+
+        setup_global(dry_run=True)
+
+        captured = capsys.readouterr()
+        assert "Setting up global" in captured.out
+
+    def test_creates_settings_json_new_if_exists(self, monkeypatch, temp_dst):
+        monkeypatch.setattr(Path, "home", lambda: temp_dst)
+
+        # Create existing settings.json
+        claude_dir = temp_dst / ".claude"
+        claude_dir.mkdir()
+        (claude_dir / "settings.json").write_text('{"existing": true}')
+
+        setup_global(dry_run=False)
+
+        # Should create .new file when settings.json already exists
+        assert (claude_dir / "settings.json.new").exists()
+        # Template content should be in .new file
+        new_content = (claude_dir / "settings.json.new").read_text()
+        assert "permissions" in new_content

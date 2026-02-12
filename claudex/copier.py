@@ -96,10 +96,11 @@ def patch_lint_hook(claude_dir: Path, profile: ProjectProfile) -> None:
 
     content = lint_hook.read_text(encoding="utf-8")
 
-    dirs = profile.src_dirs + profile.test_dirs or ["src/", "tests/"]
+    dirs: list[str] = profile.src_dirs + profile.test_dirs or ["src/", "tests/"]
     # Ensure trailing slashes
     dirs = [d if d.endswith("/") else d + "/" for d in dirs]
 
+    exts: list[str]
     if profile.language == "python":
         exts = [".py"]
     elif profile.language in ("typescript", "javascript"):
