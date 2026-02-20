@@ -1,4 +1,5 @@
 """Tests for .claude/ setup validator."""
+
 import shutil
 import tempfile
 from pathlib import Path

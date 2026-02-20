@@ -205,6 +205,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     # Global config
     if args.setup_global:
         from claudex.copier import setup_global
+
         setup_global(dry_run=args.dry_run)
 
     print(f"\n  Done! .claude/ configured with '{profile.preset_selected}' preset.")

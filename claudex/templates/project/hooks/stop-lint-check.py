@@ -27,11 +27,16 @@ def has_modified_files() -> bool:
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only", "HEAD", "--"] + LINT_DIRS,
-            capture_output=True, text=True,
-            cwd=str(get_project_root()), timeout=10,
+            capture_output=True,
+            text=True,
+            cwd=str(get_project_root()),
+            timeout=10,
         )
-        files = [f for f in result.stdout.strip().split("\n")
-                 if any(f.endswith(ext) for ext in LINT_EXTENSIONS)]
+        files = [
+            f
+            for f in result.stdout.strip().split("\n")
+            if any(f.endswith(ext) for ext in LINT_EXTENSIONS)
+        ]
         return len(files) > 0
     except Exception:
         return False
@@ -44,7 +49,10 @@ def run_lint_check() -> dict:
     try:
         result = subprocess.run(
             ["ruff", "check"] + LINT_DIRS + ["--quiet"],
-            capture_output=True, text=True, cwd=root, timeout=30,
+            capture_output=True,
+            text=True,
+            cwd=root,
+            timeout=30,
         )
         if result.returncode != 0:
             count = len([ln for ln in result.stdout.strip().split("\n") if ln.strip()])
@@ -55,7 +63,10 @@ def run_lint_check() -> dict:
     try:
         result = subprocess.run(
             ["ruff", "format"] + LINT_DIRS + ["--check", "--quiet"],
-            capture_output=True, text=True, cwd=root, timeout=30,
+            capture_output=True,
+            text=True,
+            cwd=root,
+            timeout=30,
         )
         if result.returncode != 0:
             fmt_cmd = f"ruff format {' '.join(LINT_DIRS)}"

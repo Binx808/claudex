@@ -342,7 +342,13 @@ def _detect_entry_points(path: Path, profile: ProjectProfile) -> None:
     entry_points = []
 
     candidates = [
-        "main.py", "app.py", "manage.py", "index.ts", "index.js", "server.ts", "server.js"
+        "main.py",
+        "app.py",
+        "manage.py",
+        "index.ts",
+        "index.js",
+        "server.ts",
+        "server.js",
     ]
 
     for candidate in candidates:

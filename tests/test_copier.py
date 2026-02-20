@@ -1,4 +1,5 @@
 """Tests for file copying operations."""
+
 import shutil
 import tempfile
 from pathlib import Path
@@ -121,9 +122,7 @@ class TestPatchLintHook:
         lint_hook.write_text('LINT_DIRS = ["src/", "tests/"]\nLINT_EXTENSIONS = [".py"]\n')
 
         profile = ProjectProfile(
-            language="python",
-            src_dirs=["app/", "core/"],
-            test_dirs=["tests/"]
+            language="python", src_dirs=["app/", "core/"], test_dirs=["tests/"]
         )
 
         patch_lint_hook(claude_dir, profile)
@@ -142,10 +141,7 @@ class TestPatchLintHook:
         lint_hook = hooks_dir / "stop-lint-check.py"
         lint_hook.write_text('LINT_DIRS = ["src/", "tests/"]\nLINT_EXTENSIONS = [".py"]\n')
 
-        profile = ProjectProfile(
-            language="typescript",
-            src_dirs=["src/", "components/"]
-        )
+        profile = ProjectProfile(language="typescript", src_dirs=["src/", "components/"])
 
         patch_lint_hook(claude_dir, profile)
 

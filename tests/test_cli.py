@@ -1,4 +1,5 @@
 """Integration tests for CLI commands."""
+
 import shutil
 import tempfile
 from pathlib import Path
@@ -95,11 +96,7 @@ class TestInitCommand:
         from claudex.detectors import ProjectProfile
         from claudex.generator import generate_claude_md
 
-        profile = ProjectProfile(
-            name="test-project",
-            language="python",
-            framework="FastAPI"
-        )
+        profile = ProjectProfile(name="test-project", language="python", framework="FastAPI")
 
         claude_md = generate_claude_md(profile, {})
         (temp_project / "CLAUDE.md").write_text(claude_md)

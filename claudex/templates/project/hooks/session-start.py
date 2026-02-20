@@ -33,7 +33,7 @@ def check_session_state() -> dict:
         "age_hours": 0,
         "task_name": None,
         "recommendation": None,
-        "message": None
+        "message": None,
     }
 
     if not session_dir.exists() or not current_task.exists():
@@ -100,9 +100,7 @@ def check_background_queue() -> str:
                     f"- run '/background-queue review' to check results"
                 )
             else:
-                messages.append(
-                    f"BACKGROUND QUEUE: {kicked_count} agent(s) running"
-                )
+                messages.append(f"BACKGROUND QUEUE: {kicked_count} agent(s) running")
 
         if queued_count > 0:
             messages.append(
@@ -159,7 +157,7 @@ def main():
     output = {
         "status": "ok",
         "has_active_session": state["has_session"],
-        "recommendation": state["recommendation"]
+        "recommendation": state["recommendation"],
     }
 
     # Check background queue and parallel sessions

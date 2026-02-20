@@ -9,6 +9,8 @@ jobs:
     name: Validate PR title (conventional commits)
     runs-on: ubuntu-latest
     timeout-minutes: 3
+    permissions:
+      contents: read
     steps:
       - name: Check PR title format
         env:

@@ -1,4 +1,5 @@
 """Tests for project detection engine."""
+
 from pathlib import Path
 
 from claudex.detectors import (
