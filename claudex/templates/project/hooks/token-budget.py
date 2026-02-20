@@ -1,4 +1,4 @@
-#\!/usr/bin/env python3
+#!/usr/bin/env python3
 # Token Budget Hook -- PreToolUse cost tracking and session budget enforcement.
 #
 # Reads cumulative token usage from TOKEN_LOG.md.
@@ -7,7 +7,7 @@
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # === CONFIGURE FOR YOUR PROJECT ===
@@ -25,7 +25,7 @@ OUTPUT_RATIO = 0.30
 
 def get_project_root() -> Path:
     current = Path.cwd()
-    while current \!= current.parent:
+    while current != current.parent:
         if (current / ".claude").exists():
             return current
         current = current.parent
@@ -42,8 +42,7 @@ def read_cumulative_tokens(token_log: Path) -> int:
     try:
         content = token_log.read_text(encoding="utf-8")
         total = 0
-        for line in content.split("
-"):
+        for line in content.splitlines():
             if line.strip().startswith("|") and "Cumulative" not in line and "---" not in line:
                 parts = [p.strip() for p in line.split("|")]
                 if len(parts) >= 4:
@@ -57,38 +56,10 @@ def read_cumulative_tokens(token_log: Path) -> int:
 
 
 def estimate_turn_tokens(tool_input: dict) -> int:
-    # Rough estimate: count chars in tool input / 4
     try:
-        serialized = json.dumps(tool_input)
-        return max(100, len(serialized) // 4)
+        return max(100, len(json.dumps(tool_input)) // 4)
     except Exception:
         return 200
-
-
-def append_token_log(token_log: Path, turn: int, tokens: int, cumulative: int) -> None:
-    cost = (
-        (tokens * INPUT_RATIO / 1_000_000 * INPUT_COST_PER_MTK) +
-        (tokens * OUTPUT_RATIO / 1_000_000 * OUTPUT_COST_PER_MTK)
-    )
-    try:
-        if not token_log.exists():
-            header = [
-                "# Token Budget Log",
-                "Session started: " + datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-                "Budget: " + str(SESSION_TOKEN_BUDGET) + " tokens",
-                "",
-                "| Turn | Est. Tokens | Cumulative | Cost (USD) |",
-                "|------|-------------|------------|------------|"
-            ]
-            token_log.write_text("
-".join(header) + "
-", encoding="utf-8")
-        row = "| " + str(turn) + " | " + str(tokens) + " | " + str(cumulative) + " | $" + f"{cost:.3f}" + " |"
-        with token_log.open("a", encoding="utf-8") as f:
-            f.write(row + "
-")
-    except Exception:
-        pass
 
 
 def get_turn_number(token_log: Path) -> int:
@@ -96,14 +67,39 @@ def get_turn_number(token_log: Path) -> int:
         return 1
     try:
         content = token_log.read_text(encoding="utf-8")
-        rows = [l for l in content.split("
-") if l.startswith("|") and "Turn" not in l and "---" not in l]
+        rows = [
+            line for line in content.splitlines()
+            if line.startswith("|") and "Turn" not in line and "---" not in line
+        ]
         return len(rows) + 1
     except Exception:
         return 1
 
 
-def main():
+def append_token_log(token_log: Path, turn: int, tokens: int, cumulative: int) -> None:
+    cost = (
+        (tokens * INPUT_RATIO / 1_000_000 * INPUT_COST_PER_MTK)
+        + (tokens * OUTPUT_RATIO / 1_000_000 * OUTPUT_COST_PER_MTK)
+    )
+    try:
+        if not token_log.exists():
+            header = [
+                "# Token Budget Log",
+                "Session started: " + datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
+                "Budget: " + str(SESSION_TOKEN_BUDGET) + " tokens",
+                "",
+                "| Turn | Est. Tokens | Cumulative | Cost (USD) |",
+                "|------|-------------|------------|------------|",
+            ]
+            token_log.write_text("\n".join(header) + "\n", encoding="utf-8")
+        row = f"| {turn} | {tokens:,} | {cumulative:,} | ${cost:.4f} |"
+        with token_log.open("a", encoding="utf-8") as f:
+            f.write(row + "\n")
+    except Exception:
+        pass
+
+
+def main() -> None:
     try:
         hook_input = json.loads(sys.stdin.read())
     except Exception:
@@ -121,34 +117,27 @@ def main():
     append_token_log(token_log, turn_number, turn_tokens, new_cumulative)
 
     usage_ratio = new_cumulative / SESSION_TOKEN_BUDGET
+    cost = (
+        (new_cumulative * INPUT_RATIO / 1_000_000 * INPUT_COST_PER_MTK)
+        + (new_cumulative * OUTPUT_RATIO / 1_000_000 * OUTPUT_COST_PER_MTK)
+    )
 
     if usage_ratio >= BLOCK_THRESHOLD:
-        cost = (
-            (new_cumulative * INPUT_RATIO / 1_000_000 * INPUT_COST_PER_MTK) +
-            (new_cumulative * OUTPUT_RATIO / 1_000_000 * OUTPUT_COST_PER_MTK)
-        )
         print(json.dumps({
             "status": "error",
             "message": (
-                "Token budget exhausted: " + str(new_cumulative) + "/" + str(SESSION_TOKEN_BUDGET)
-                + " tokens (~$" + f"{cost:.2f}" + ")"
-                + ". Start a new session or increase SESSION_TOKEN_BUDGET in token-budget.py."
-            )
+                f"Token budget exhausted: {new_cumulative}/{SESSION_TOKEN_BUDGET} tokens"
+                f" (~${cost:.2f}). Start a new session or increase SESSION_TOKEN_BUDGET."
+            ),
         }))
         return
 
-    output = {"status": "ok"}
-
+    output: dict = {"status": "ok"}
     if usage_ratio >= WARN_THRESHOLD:
-        cost = (
-            (new_cumulative * INPUT_RATIO / 1_000_000 * INPUT_COST_PER_MTK) +
-            (new_cumulative * OUTPUT_RATIO / 1_000_000 * OUTPUT_COST_PER_MTK)
-        )
         pct = int(usage_ratio * 100)
         output["user_message"] = (
-            "Token budget " + str(pct) + "% used (" + str(new_cumulative) + "/" + str(SESSION_TOKEN_BUDGET)
-            + " tokens, ~$" + f"{cost:.2f}" + ")"
-            + ". Consider checkpointing and starting a fresh session soon."
+            f"Token budget {pct}% used ({new_cumulative:,}/{SESSION_TOKEN_BUDGET:,} tokens,"
+            f" ~${cost:.2f}). Checkpoint and start a fresh session soon."
         )
 
     print(json.dumps(output))
