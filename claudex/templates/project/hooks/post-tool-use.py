@@ -8,11 +8,10 @@ Customize LAYER_RULES to match your project's architecture.
 """
 
 import json
-import sys
 import re
-from pathlib import Path
+import sys
 from datetime import datetime
-
+from pathlib import Path
 
 # === CUSTOMIZE THIS FOR YOUR PROJECT ===
 # Map layer paths to forbidden imports
@@ -106,7 +105,10 @@ def check_for_violations(file_path: str, content: str) -> list:
                 violations.append({
                     "type": "Security",
                     "severity": "CRITICAL",
-                    "message": f"Possible hardcoded secret detected ('{pattern}'). Use environment variables."
+                    "message": (
+                        f"Possible hardcoded secret detected ('{pattern}')."
+                        " Use environment variables."
+                    )
                 })
 
     return violations

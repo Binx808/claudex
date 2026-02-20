@@ -140,7 +140,7 @@ def main():
     if tool_name == "Write" and content:
         checks.append(("size", lambda: check_file_size(file_path, content)))
 
-    for check_name, check_fn in checks:
+    for _check_name, check_fn in checks:
         allowed, message = check_fn()
         if not allowed:
             print(json.dumps({"allow": False, "message": message}))

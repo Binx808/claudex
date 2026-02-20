@@ -71,7 +71,8 @@ def validate_project(path: Path) -> tuple[list[str], list[str]]:
 )
         else:
             failures.append(
-                "'.gitignore' missing '.claude/' entry - add it manually or run 'claudex init --force'"
+                "'.gitignore' missing '.claude/' entry"
+                " - add it manually or run 'claudex init --force'"
             )
     else:
         failures.append("No '.gitignore' file - create one with '.claude/' entry")

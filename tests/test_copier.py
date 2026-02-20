@@ -1,7 +1,7 @@
 """Tests for file copying operations."""
-from pathlib import Path
-import tempfile
 import shutil
+import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -65,7 +65,7 @@ class TestCopyTree:
 
     def test_path_traversal_protection(self, temp_src, temp_dst):
         # Create a file with path traversal attempt
-        malicious_src = temp_src / ".." / "malicious.txt"
+        temp_src / ".." / "malicious.txt"
 
         try:
             copy_tree(temp_src, temp_dst)

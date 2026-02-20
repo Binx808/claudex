@@ -47,7 +47,7 @@ def run_lint_check() -> dict:
             capture_output=True, text=True, cwd=root, timeout=30,
         )
         if result.returncode != 0:
-            count = len([l for l in result.stdout.strip().split("\n") if l.strip()])
+            count = len([ln for ln in result.stdout.strip().split("\n") if ln.strip()])
             issues.append(f"Lint: {count} issue(s) — run `ruff check {' '.join(LINT_DIRS)} --fix`")
     except FileNotFoundError:
         pass
@@ -58,7 +58,8 @@ def run_lint_check() -> dict:
             capture_output=True, text=True, cwd=root, timeout=30,
         )
         if result.returncode != 0:
-            issues.append(f"Format: files need reformatting — run `ruff format {' '.join(LINT_DIRS)}`")
+            fmt_cmd = f"ruff format {' '.join(LINT_DIRS)}"
+            issues.append(f"Format: files need reformatting — run `{fmt_cmd}`")
     except FileNotFoundError:
         pass
 
@@ -76,7 +77,8 @@ def main():
     else:
         output = {
             "status": "ok",
-            "user_message": "Lint/format issues detected:\n" + "\n".join(f"  - {i}" for i in result["issues"]),
+            "user_message": "Lint/format issues detected:\n"
+            + "\n".join(f"  - {i}" for i in result["issues"]),
         }
         print(json.dumps(output))
 

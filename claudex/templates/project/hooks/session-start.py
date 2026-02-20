@@ -9,7 +9,6 @@ Runs when a new session begins:
 """
 
 import json
-import sys
 import time
 from pathlib import Path
 
@@ -137,11 +136,19 @@ def check_parallel_sessions() -> str:
                 continue
             if in_table and line.startswith("##"):
                 break
-            if in_table and line.startswith("|") and not line.startswith("| #") and not line.startswith("| -"):
+            if (
+                in_table
+                and line.startswith("|")
+                and not line.startswith("| #")
+                and not line.startswith("| -")
+            ):
                 active_count += 1
 
         if active_count > 0:
-            return f"PARALLEL SESSIONS: {active_count} active session(s) - check PARALLEL_SESSIONS.md before editing shared files"
+            return (
+                f"PARALLEL SESSIONS: {active_count} active session(s)"
+                " - check PARALLEL_SESSIONS.md before editing shared files"
+            )
         return ""
     except Exception:
         return ""

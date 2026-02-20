@@ -1,14 +1,12 @@
 """Tests for CLAUDE.md generator."""
-from pathlib import Path
 
-import pytest
 
 from claudex.detectors import ProjectProfile
 from claudex.generator import (
-    generate_claude_md,
+    _section_constraints,
     _section_header,
     _section_quick_start,
-    _section_constraints,
+    generate_claude_md,
 )
 
 
