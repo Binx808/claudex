@@ -152,7 +152,7 @@ def _init_project_files(target: Path, profile, dry_run: bool) -> None:
         if not dry_run:
             content = mcp_template.read_text(encoding="utf-8")
             mcp_dest.write_text(content, encoding="utf-8")
-            print(f"  CREATE: .mcp.json")
+            print("  CREATE: .mcp.json")
         else:
             print(f"  CREATE: {mcp_dest}")
     elif mcp_dest.exists():
@@ -165,6 +165,47 @@ def _init_project_files(target: Path, profile, dry_run: bool) -> None:
     # Add .claude/ to .gitignore
     if not dry_run:
         ensure_gitignore(target)
+
+
+def _init_multi_agent_files(target: Path, dry_run: bool) -> None:
+    """Copy multi-agent templates (orchestrator, role registry, spec commands)."""
+    from claudex.copier import PROJECT_TEMPLATE
+
+    claude_dir = target / ".claude"
+    agents_src = PROJECT_TEMPLATE / "agents"
+    agents_dest = claude_dir / "agents"
+
+    multi_agent_files = [
+        (agents_src / "orchestrator.md", agents_dest / "orchestrator.md"),
+        (agents_src / "implementers.yml", agents_dest / "implementers.yml"),
+        (agents_src / "verifiers.yml", agents_dest / "verifiers.yml"),
+    ]
+    spec_commands = ["new-spec.md", "implement-spec.md", "context-handoff.md", "orchestrate.md"]
+    commands_src = PROJECT_TEMPLATE / "commands"
+    commands_dest = claude_dir / "commands"
+
+    if not dry_run:
+        agents_dest.mkdir(exist_ok=True)
+
+    for src, dest in multi_agent_files:
+        if src.exists():
+            if not dry_run:
+                dest.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+            print(f"  CREATE: .claude/agents/{dest.name}")
+
+    for fname in spec_commands:
+        src = commands_src / fname
+        dest = commands_dest / fname
+        if src.exists():
+            if not dry_run:
+                dest.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+            print(f"  CREATE: .claude/commands/{fname}")
+
+    print("\n  Multi-agent layer installed:")
+    print("    .claude/agents/orchestrator.md   — route tasks automatically")
+    print("    .claude/agents/implementers.yml  — 8 implementer roles")
+    print("    .claude/agents/verifiers.yml     — 4 verifier roles")
+    print("    /orchestrate, /new-spec, /implement-spec, /context-handoff commands\n")
 
 
 def cmd_init(args: argparse.Namespace) -> int:
@@ -201,6 +242,10 @@ def cmd_init(args: argparse.Namespace) -> int:
 
     # Copy template files and configure
     _init_project_files(target, profile, args.dry_run)
+
+    # Multi-agent layer (optional)
+    if getattr(args, "multi_agent", False):
+        _init_multi_agent_files(target, args.dry_run)
 
     # Global config
     if args.setup_global:
@@ -287,7 +332,7 @@ def cmd_info(args: argparse.Namespace) -> int:
         print(f"  Entry points:    {', '.join(profile.entry_points)}")
 
     if profile.directory_tree:
-        print(f"\n  Directory tree:\n")
+        print("\n  Directory tree:\n")
         for line in profile.directory_tree.splitlines():
             # Handle Windows console encoding
             try:
@@ -329,10 +374,19 @@ def main() -> None:
         "--global", dest="setup_global", action="store_true", help="Also install ~/.claude/"
     )
     p_init.add_argument("--dry-run", action="store_true", help="Preview without writing files")
+    p_init.add_argument(
+        "--multi-agent",
+        action="store_true",
+        help="Also install multi-agent templates (orchestrator, role registry, spec commands)",
+    )
 
     # update
-    p_update = subparsers.add_parser("update", help="Update .claude/ templates (preserve user files)")
-    p_update.add_argument("directory", nargs="?", default=".", help="Project directory (default: .)")
+    p_update = subparsers.add_parser(
+        "update", help="Update .claude/ templates (preserve user files)"
+    )
+    p_update.add_argument(
+        "directory", nargs="?", default=".", help="Project directory (default: .)"
+    )
     p_update.add_argument("--dry-run", action="store_true", help="Preview without writing files")
 
     # validate
