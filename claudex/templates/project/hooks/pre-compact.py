@@ -68,9 +68,8 @@ def extract_state(session_dir: Path) -> dict:
             text = progress_file.read_text(encoding="utf-8")
             for line in text.split("\n"):
                 line = line.strip()
-                is_done = (
-                    re.match(r"^[-\u2705]\s*\[x\]", line, re.IGNORECASE)
-                    or line.startswith("\u2705")
+                is_done = re.match(r"^[-\u2705]\s*\[x\]", line, re.IGNORECASE) or line.startswith(
+                    "\u2705"
                 )
                 if is_done:
                     step = re.sub(r"^[-\u2705\s\[x\]]+", "", line, flags=re.IGNORECASE).strip()
@@ -222,8 +221,7 @@ def main():
     if result.get("checkpointed_at"):
         ts = result["checkpointed_at"]
         output["user_message"] = (
-            f"Pre-compact snapshot saved ({ts})"
-            " \u2014 state preserved in PRE_COMPACT_SNAPSHOT.md"
+            f"Pre-compact snapshot saved ({ts}) \u2014 state preserved in PRE_COMPACT_SNAPSHOT.md"
         )
     print(json.dumps(output))
 

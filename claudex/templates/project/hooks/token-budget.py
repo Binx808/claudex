@@ -11,9 +11,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 # === CONFIGURE FOR YOUR PROJECT ===
-SESSION_TOKEN_BUDGET = 200_000   # tokens per session
-WARN_THRESHOLD = 0.80            # warn at 80%
-BLOCK_THRESHOLD = 1.00           # block at 100%
+SESSION_TOKEN_BUDGET = 200_000  # tokens per session
+WARN_THRESHOLD = 0.80  # warn at 80%
+BLOCK_THRESHOLD = 1.00  # block at 100%
 # Token cost per 1M tokens (USD) -- Claude Sonnet 4 defaults
 INPUT_COST_PER_MTK = 3.00
 OUTPUT_COST_PER_MTK = 15.00
@@ -68,7 +68,8 @@ def get_turn_number(token_log: Path) -> int:
     try:
         content = token_log.read_text(encoding="utf-8")
         rows = [
-            line for line in content.splitlines()
+            line
+            for line in content.splitlines()
             if line.startswith("|") and "Turn" not in line and "---" not in line
         ]
         return len(rows) + 1
@@ -77,9 +78,8 @@ def get_turn_number(token_log: Path) -> int:
 
 
 def append_token_log(token_log: Path, turn: int, tokens: int, cumulative: int) -> None:
-    cost = (
-        (tokens * INPUT_RATIO / 1_000_000 * INPUT_COST_PER_MTK)
-        + (tokens * OUTPUT_RATIO / 1_000_000 * OUTPUT_COST_PER_MTK)
+    cost = (tokens * INPUT_RATIO / 1_000_000 * INPUT_COST_PER_MTK) + (
+        tokens * OUTPUT_RATIO / 1_000_000 * OUTPUT_COST_PER_MTK
     )
     try:
         if not token_log.exists():
@@ -117,19 +117,22 @@ def main() -> None:
     append_token_log(token_log, turn_number, turn_tokens, new_cumulative)
 
     usage_ratio = new_cumulative / SESSION_TOKEN_BUDGET
-    cost = (
-        (new_cumulative * INPUT_RATIO / 1_000_000 * INPUT_COST_PER_MTK)
-        + (new_cumulative * OUTPUT_RATIO / 1_000_000 * OUTPUT_COST_PER_MTK)
+    cost = (new_cumulative * INPUT_RATIO / 1_000_000 * INPUT_COST_PER_MTK) + (
+        new_cumulative * OUTPUT_RATIO / 1_000_000 * OUTPUT_COST_PER_MTK
     )
 
     if usage_ratio >= BLOCK_THRESHOLD:
-        print(json.dumps({
-            "status": "error",
-            "message": (
-                f"Token budget exhausted: {new_cumulative}/{SESSION_TOKEN_BUDGET} tokens"
-                f" (~${cost:.2f}). Start a new session or increase SESSION_TOKEN_BUDGET."
-            ),
-        }))
+        print(
+            json.dumps(
+                {
+                    "status": "error",
+                    "message": (
+                        f"Token budget exhausted: {new_cumulative}/{SESSION_TOKEN_BUDGET} tokens"
+                        f" (~${cost:.2f}). Start a new session or increase SESSION_TOKEN_BUDGET."
+                    ),
+                }
+            )
+        )
         return
 
     output: dict = {"status": "ok"}
