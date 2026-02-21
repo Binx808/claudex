@@ -1,6 +1,6 @@
 [project]
 name = "binxai-claudex"
-version = "1.0.0"
+version = "1.1.0"
 description = "Set up Claude Code for any project in one command"
 readme = "README.md"
 license = {text = "MIT"}
